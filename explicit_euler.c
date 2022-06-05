@@ -1,19 +1,18 @@
-static char help[] = "Expilict Euler for 1D heat problem .\n\n";
-
 #include <petscksp.h>
 #include <petscmath.h>
 #include <math.h>
 
-#define pi acos(-1)   /* define pi */
+
 
 int main(int argc,char **args)
 {
-  Vec            x, z, b;          /* build the vecotr */
+  double pi = acos(-1.0);
+  Vec            x, u, f;          /* build the vecotr */
   Mat            A;                /* build the  matrix */
   PetscErrorCode ierr;             /* error checking */
   PetscInt       i, n=200, start=0, end=n, col[3], rstart,rend,nlocal,rank; /* n is region */
-  PetscReal      p=1.0, c=1.0, k=1.0, alpha, beta, dx, ix;/* pck is the physic parameter */
-  PetscReal      dt=0.00001, t=0.0, u0=0.0;   /* time step */
+  PetscReal      dx, x, a, f0;
+  PetscReal      p=1.0, c=1.0, k=1.0, t=0.0, u0=0.0, t0=2.0;   /* time step */
   PetscScalar    zero = 0.0, value[3];  /* u0 initial condition */
 
   ierr = PetscInitialize(&argc,&args,(char*)0,help);if (ierr) return ierr;/* initial petsc */
@@ -23,16 +22,16 @@ int main(int argc,char **args)
   ierr = PetscPrintf(PETSC_COMM_WORLD, "n = %d\n", n);CHKERRQ(ierr); /* print n */
 
   dx=1.0/n;
-  alpha = k/p/c;
-  beta = alpha*dt/dx/dx;
+  a = k*dt/(p*c*dx*dx);
+  
   ierr = PetscPrintf(PETSC_COMM_WORLD,"dx = %f\n",dx);CHKERRQ(ierr); /* check the dx */
-  ierr = PetscPrintf(PETSC_COMM_WORLD,"beta = %f\n",beta);CHKERRQ(ierr);/* check the beta */
+  ierr = PetscPrintf(PETSC_COMM_WORLD,"a = %f\n",a);CHKERRQ(ierr);
 
   ierr = VecCreate(PETSC_COMM_WORLD,&x);CHKERRQ(ierr);/* create vector */
   ierr = VecSetSizes(x,PETSC_DECIDE,n+1);CHKERRQ(ierr); /* vector size*/
   ierr = VecSetFromOptions(x);CHKERRQ(ierr);  /* enable option */
-  ierr = VecDuplicate(x,&z);CHKERRQ(ierr);  /* copy the type and layout */
-  ierr = VecDuplicate(x,&b);CHKERRQ(ierr);
+  ierr = VecDuplicate(x,&u);CHKERRQ(ierr);  /* copy the type and layout */
+  ierr = VecDuplicate(x,&f);CHKERRQ(ierr);
 
   ierr = VecGetOwnershipRange(x,&rstart,&rend);CHKERRQ(ierr); /* set start and end */
   ierr = VecGetLocalSize(x,&nlocal);CHKERRQ(ierr);  /* query the layout */
@@ -43,82 +42,78 @@ int main(int argc,char **args)
   ierr = MatSetUp(A);CHKERRQ(ierr); 
 
 
-  if (!rstart)      /* set the first line element */
+  if (!rstart) 
   {
     rstart = 1;
-    i      = 0; col[0] = 0; col[1] = 1; value[0] = 1.0-2.0*beta; value[1] = beta; /* give values */
-    ierr   = MatSetValues(A,1,&i,2,col,value,INSERT_VALUES);CHKERRQ(ierr); /* set values */
+    i      = 0; col[0] = 0; col[1] = 1; value[0] = 1.0-2.0*a; value[1] = a;
+    ierr   = MatSetValues(A,1,&i,2,col,value,INSERT_VALUES);CHKERRQ(ierr);
   }
   
-  if (rend == n+1)    /* set the final line element */
+  if (rend == n) 
   {
-    rend = n;
-    i    = n; col[0] = n-1; col[1] = n; value[0] = beta; value[1] = 1.0-2.0*beta;  /* give values */
-    ierr = MatSetValues(A,1,&i,2,col,value,INSERT_VALUES);CHKERRQ(ierr); /* set values */
+    rend = n-1;
+    i    = n-1; col[0] = n-2; col[1] = n-1; value[0] = a; value[1] = 1.0-2.0*a;
+    ierr = MatSetValues(A,1,&i,2,col,value,INSERT_VALUES);CHKERRQ(ierr);
   }
 
-  value[0] = beta; value[1] = 1.0-2.0*beta; value[2] = beta;   /* set the rest line element */
+  /* Set entries corresponding to the mesh interior */
+  value[0] = a; value[1] = 1.0-2.0*a; value[2] = a;
   for (i=rstart; i<rend; i++) 
   {
     col[0] = i-1; col[1] = i; col[2] = i+1;
-    ierr   = MatSetValues(A,1,&i,3,col,value,INSERT_VALUES);CHKERRQ(ierr); /* set values */
+    ierr   = MatSetValues(A,1,&i,3,col,value,INSERT_VALUES);CHKERRQ(ierr);
   }
 
-  ierr = MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);  /* Assemble the matrix */
+  /* Assemble the matrix */
+  ierr = MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-  ierr = MatView(A, PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);   /* print the matrix */
+
+  ierr = MatView(A,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
 
 
-  ierr = VecSet(z,zero);CHKERRQ(ierr);  /* set vector */
+  ierr = VecSet(u,zero);CHKERRQ(ierr);  /* set vector */
   if(rank == 0){
       for(int i=1; i<n; i++){   /* from 1 to n-1 point*/
-        ix = i*dx;
-        u0 = exp(ix);  /* set u0 */
-	      ierr = VecSetValues(z, 1, &i, &u0, INSERT_VALUES);CHKERRQ(ierr);
+        u0 = exp(i*dx);  
+	      ierr = VecSetValues(u, 1, &i, &u0, INSERT_VALUES);CHKERRQ(ierr);
       }
   }
   
-  ierr = VecAssemblyBegin(z);CHKERRQ(ierr); /* Assemble the vector*/
-  ierr = VecAssemblyEnd(z);CHKERRQ(ierr);
-  ix = 0.0;   /* set restart value */
+  ierr = VecAssemblyBegin(u);CHKERRQ(ierr); /* Assemble the vector*/
+  ierr = VecAssemblyEnd(u);CHKERRQ(ierr);
 
-  ierr = VecSet(b,zero);CHKERRQ(ierr); /* set initial vectot b */
+  ierr = VecSet(f,zero);CHKERRQ(ierr);
   if(rank == 0){
-    for(int i = 1; i < n; i++){  /* from 1 to n-1 point*/
-      PetscReal f;   /* temp value for heat supply term */
-      f = dt*sin(i*dx*pi); /* heat supply value */
-      ierr = VecSetValues(b, 1, &i, &f, INSERT_VALUES);CHKERRQ(ierr); /* set value */
+    for(int i = 1; i < n; i++){ 
+      f0 = dt*sin(pi*i*dx); /* heat supply value */
+      ierr = VecSetValues(f, 1, &i, &f, INSERT_VALUES);CHKERRQ(ierr); /* set value */
     }
   }
 
-  ierr = VecAssemblyBegin(b);CHKERRQ(ierr);  /* Assemble the vector*/
-  ierr = VecAssemblyEnd(b);CHKERRQ(ierr);
+  ierr = VecAssemblyBegin(f);CHKERRQ(ierr);  /* Assemble the vector*/
+  ierr = VecAssemblyEnd(f);CHKERRQ(ierr);
 
-  while(PetscAbsReal(t)<3.0){   /* set the caculate time */
-     t += dt;   /* time advance*/
-     ierr = MatMult(A,z,x);CHKERRQ(ierr); /* Az-->x*/
-     ierr = VecAXPY(x,1.0,b);CHKERRQ(ierr); /* x+b-->x*/
+  if(PetscAbsReal(t)<3.0){   /* set the caculate time */
+        /* time advance*/
+     ierr = MatMult(A,u,x);CHKERRQ(ierr); 
+     ierr = VecAXPY(x,1.0,f);CHKERRQ(ierr); 
 
      ierr = VecSetValues(x, 1, &start, &zero, INSERT_VALUES);CHKERRQ(ierr); /* set value*/
      ierr = VecSetValues(x, 1, &end, &zero, INSERT_VALUES);CHKERRQ(ierr);
      ierr = VecAssemblyBegin(x);CHKERRQ(ierr); /* Assemble the vector*/
      ierr = VecAssemblyEnd(x);CHKERRQ(ierr);
-     ierr = VecCopy(x,z);CHKERRQ(ierr);  /* copy x into z*/
+     ierr = VecCopy(x,u);CHKERRQ(ierr);  
+     t = t+dt;
 
   }
+	
+  /* view the result */
+  ierr = VecView(z,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);  /* view the result */
 
-  ierr = VecView(z,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);  /* view the z vector */
- 
-   /*Viewer to output in HDF5 format*/
-    PetscViewer pv;
-    PetscViewerCreate(PETSC_COMM_WORLD,&pv);
-    PetscViewerASCIIOpen(PETSC_COMM_WORLD,"u_final.dat",&pv);
-    VecView(z, pv);
-    PetscViewerDestroy(&pv);
   /* deallocate the vector and matirx */
   ierr = VecDestroy(&x);CHKERRQ(ierr);  
   ierr = VecDestroy(&z);CHKERRQ(ierr);
-  ierr = VecDestroy(&b);CHKERRQ(ierr);
+  ierr = VecDestroy(&f);CHKERRQ(ierr);
   ierr = MatDestroy(&A);CHKERRQ(ierr);
 
   ierr = PetscFinalize();  /* finish */
