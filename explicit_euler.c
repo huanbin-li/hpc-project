@@ -98,24 +98,22 @@ int main(int argc,char **args)
      ierr = MatMult(A,u,x);CHKERRQ(ierr); 
      ierr = VecAXPY(x,1.0,f);CHKERRQ(ierr); 
 
-     ierr = VecSetValues(x, 1, &start, &zero, INSERT_VALUES);CHKERRQ(ierr); /* set value*/
+     ierr = VecSetValues(x, 1, &start, &zero, INSERT_VALUES);CHKERRQ(ierr);
      ierr = VecSetValues(x, 1, &end, &zero, INSERT_VALUES);CHKERRQ(ierr);
-     ierr = VecAssemblyBegin(x);CHKERRQ(ierr); /* Assemble the vector*/
+     ierr = VecAssemblyBegin(x);CHKERRQ(ierr);
      ierr = VecAssemblyEnd(x);CHKERRQ(ierr);
      ierr = VecCopy(x,u);CHKERRQ(ierr);  
      t = t+dt;
 
   }
 	
-  /* view the result */
-  ierr = VecView(z,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);  /* view the result */
+  ierr = VecView(u,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr); 
 
-  /* deallocate the vector and matirx */
   ierr = VecDestroy(&x);CHKERRQ(ierr);  
-  ierr = VecDestroy(&z);CHKERRQ(ierr);
+  ierr = VecDestroy(&u);CHKERRQ(ierr);
   ierr = VecDestroy(&f);CHKERRQ(ierr);
   ierr = MatDestroy(&A);CHKERRQ(ierr);
 
-  ierr = PetscFinalize();  /* finish */
+  ierr = PetscFinalize(); 
   return ierr;
 }
