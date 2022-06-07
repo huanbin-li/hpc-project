@@ -1,6 +1,7 @@
 static char help[] = "Expilict Euler.\n\n";
 #include <petscksp.h>
 #include <petscmath.h>
+#include <petscviewerhdf5.h>
 #include <math.h>
 
 
@@ -111,7 +112,25 @@ int main(int argc,char **args)
 
   ierr = VecView(f,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr); 
   ierr = VecView(u,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);   
-
+	
+  if(restart > 0)
+  {
+    ierr = PetscViewerHDF5Open(PETSC_COMM_WORLD,"explicit_heat.h5", FILE_MODE_READ, &h5);CHKERRQ(ierr);    
+    ierr = PetscObjectSetName((PetscObject) z, "explicit_heat_z");CHKERRQ(ierr);   
+    ierr = PetscObjectSetName((PetscObject) temp, "explicit_heat_temp");CHKERRQ(ierr); 
+    ierr = VecLoad(temp, h5);CHKERRQ(ierr);   
+    ierr = VecLoad(z, h5);CHKERRQ(ierr);    
+    ierr = PetscViewerDestroy(&h5);CHKERRQ(ierr);   
+    
+    index=0;   
+    ierr = VecGetValues(temp,1,&index,&dx);CHKERRQ(ierr);    
+    index += 1;    
+    ierr = VecGetValues(temp,1,&index,&dt);CHKERRQ(ierr);    
+    index += 1;  
+    ierr = VecGetValues(temp,1,&index,&t);CHKERRQ(ierr);   
+    index= 0;   
+  }
+	
   for(int i = 0; i < tn; i++)
   {    
      //do the calculation
@@ -145,11 +164,14 @@ int main(int argc,char **args)
       }
   }
 	
-  ierr = VecView(u,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr); 
+  ierr = VecView(z,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);  /* view the z vector */
+
+	
   //deallocate the vectors and matrix
   ierr = VecDestroy(&x);CHKERRQ(ierr);  ierr = VecDestroy(&u);CHKERRQ(ierr);
   ierr = VecDestroy(&f);CHKERRQ(ierr);
   ierr = MatDestroy(&A);CHKERRQ(ierr);
+	
 
   ierr = PetscFinalize(); 
   return ierr;
