@@ -125,6 +125,24 @@ int main(int argc,char **args)
      ierr = VecAssemblyEnd(x);CHKERRQ(ierr);
      //give the value of x to u,for the next cycle
      ierr = VecCopy(x,u);CHKERRQ(ierr);  
+	       iteration += 1;
+	  
+     if((iteration % 10) == 0)
+     {
+        data[0] = dx; data[1] = dt; data[2] = t;   
+        ierr = VecSet(temp,zero);CHKERRQ(ierr);    
+        for(index = 0; index < 3; index++)
+        {   
+          u0 = data[index];   
+          ierr = VecSetValues(temp,1,&index,&u0,INSERT_VALUES);CHKERRQ(ierr);   
+        }
+        ierr = VecAssemblyBegin(temp);CHKERRQ(ierr);   
+        ierr = VecAssemblyEnd(temp);CHKERRQ(ierr);  
+  
+        ierr = VecView(temp, h5);CHKERRQ(ierr);    
+        ierr = VecView(z, h5);CHKERRQ(ierr);   
+        ierr = PetscViewerDestroy(&h5);CHKERRQ(ierr); 
+      }
   }
 	
   ierr = VecView(u,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr); 
