@@ -1,8 +1,9 @@
 static char help[] = "Expilict Euler.\n\n";
 #include <petscksp.h>
 #include <petscmath.h>
-#include <petscviewerhdf5.h>
 #include <math.h>
+#include "hdf5.h"
+#include <petscviewerhdf5.h>
 
 
 
@@ -12,24 +13,34 @@ int main(int argc,char **args)
   Vec            x, u, f;          
   Mat            A;                
   PetscErrorCode ierr;            
-  PetscInt       i, col[3], rstart,rend,nlocal,rank,tn;
+  PetscInt       i, rstart,rend,nlocal,rank,tn;
+  PetscInt       col[3],para[3],data0[3];
+  
   //n is the number of grids
-  PetscInt       n=100, edge1=0, edge2=n;
-  PetscReal      dx, a, f0, u0;
+  PetscInt       n=100, edge1=0, edge2=n, step=0;
+  PetscReal      dx, a, f0, u0, tempdata;
+  
   //dt is time step, t0 is the total time
-  PetscReal      p=1.0, c=1.0, k=1.0, t0=2.0, dt=0.00001;   
-  PetscScalar    zero = 0.0, one = 1.0, value[3];  /* u0 initial condition */
+  PetscReal      p=1.0, c=1.0, k=1.0, t0=2.0, dt=0.0001;   
+  PetscScalar    zero = 0.0, one = 1.0, value[3]; 
+  
   //initialize Petsc and enable MPI
   ierr = PetscInitialize(&argc,&args,(char*)0,help);if (ierr) return ierr;
   ierr = MPI_Comm_rank(PETSC_COMM_WORLD, &rank);CHKERRQ(ierr); 
   ierr = PetscPrintf(PETSC_COMM_WORLD, "n = %d\n", n);CHKERRQ(ierr);
   
-  //read data from command line
-   
+  //read n,dt and restart step from command line
+  ierr = PetscOptionsGetInt(NULL,NULL,"-n",&n,NULL);CHKERRQ(ierr);    
+  ierr = PetscOptionsGetReal(NULL,NULL,"-dt",&dt,NULL);CHKERRQ(ierr);   
+  ierr = PetscOptionsGetReal(NULL,NULL,"-step",&step,NULL);CHKERRQ(ierr);
+  
   //set values for some parameters
   dx = 1.0/n;
   a = k*dt/(p*c*dx*dx);
   tn = floor(t0/dt);
+  data0[0] = dx; 
+  data0[1] = dt;
+ 
   
   //ierr = PetscPrintf(PETSC_COMM_WORLD,"dx = %f\n",dx);CHKERRQ(ierr); 
   //ierr = PetscPrintf(PETSC_COMM_WORLD,"a = %f\n",a);CHKERRQ(ierr);
@@ -96,6 +107,7 @@ int main(int argc,char **args)
   //assemble the vector
   ierr = VecAssemblyBegin(u);CHKERRQ(ierr); 
   ierr = VecAssemblyEnd(u);CHKERRQ(ierr);
+  
   //set the values for f
   ierr = VecSet(f,one);CHKERRQ(ierr);
   if(rank == 0)
@@ -112,25 +124,47 @@ int main(int argc,char **args)
 
   ierr = VecView(f,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr); 
   ierr = VecView(u,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);   
-	
-  if(restart > 0)
+  
+  if(step > 0)
   {
-    ierr = PetscViewerHDF5Open(PETSC_COMM_WORLD,"explicit_heat.h5", FILE_MODE_READ, &h5);CHKERRQ(ierr);    
-    ierr = PetscObjectSetName((PetscObject) z, "explicit_heat_z");CHKERRQ(ierr);   
-    ierr = PetscObjectSetName((PetscObject) temp, "explicit_heat_temp");CHKERRQ(ierr); 
-    ierr = VecLoad(temp, h5);CHKERRQ(ierr);   
-    ierr = VecLoad(z, h5);CHKERRQ(ierr);    
-    ierr = PetscViewerDestroy(&h5);CHKERRQ(ierr);   
+  	ierr = PetscViewerCreate(PETSC_COMM_WORLD,&h5);CHKERRQ(ierr);  
+    ierr = PetscViewerHDF5Open(PETSC_COMM_WORLD,"out.h5", FILE_MODE_READ, &h5);CHKERRQ(ierr);    
+    ierr = PetscObjectSetName((PetscObject) para, "para");CHKERRQ(ierr); 
+    ierr = PetscObjectSetName((PetscObject) u, "temp");CHKERRQ(ierr); 
+    //load datas from HDF5 file
+    ierr = VecLoad(u, h5);CHKERRQ(ierr);
+	ierr = VecLoad(para, h5);CHKERRQ(ierr);      
+      
+    //load time and grid number values from HDF5 file
+    for(int i = 0; i < 2; i++)
+	{ 
+	    /*if (i==0)
+	    {
+	       ierr = VecGetValues(para,1,&i,&dx);CHKERRQ(ierr); 	
+	    }
+	    if (i==1)
+	    {
+	       ierr = VecGetValues(para,1,&i,&dt);CHKERRQ(ierr); 	
+	    }
+	    */
+	    if (i==2)
+	    {
+	       ierr = VecGetValues(para,1,&i,&t);CHKERRQ(ierr); 
+		   ierr = PetscPrintf(PETSC_COMM_WORLD, "restart from t = %d\n", t);CHKERRQ(ierr);
+	    }
+    }
+    ierr = PetscViewerDestroy(&h5);CHKERRQ(ierr); 
     
-    index=0;   
+    /*index=0;   
     ierr = VecGetValues(temp,1,&index,&dx);CHKERRQ(ierr);    
     index += 1;    
     ierr = VecGetValues(temp,1,&index,&dt);CHKERRQ(ierr);    
     index += 1;  
     ierr = VecGetValues(temp,1,&index,&t);CHKERRQ(ierr);   
-    index= 0;   
+    index= 0; 
+	*/  
   }
-	
+
   for(int i = 0; i < tn; i++)
   {    
      //do the calculation
@@ -144,34 +178,38 @@ int main(int argc,char **args)
      ierr = VecAssemblyEnd(x);CHKERRQ(ierr);
      //give the value of x to u,for the next cycle
      ierr = VecCopy(x,u);CHKERRQ(ierr);  
-	       iteration += 1;
-	  
-     if((iteration % 10) == 0)
+     //Write the values of the current solutions every 10 iterations. 
+     ierr = PetscViewerCreate(PETSC_COMM_WORLD,&h5);CHKERRQ(ierr); 
+     
+     if (i%10 == 0)
      {
-        data[0] = dx; data[1] = dt; data[2] = t;   
-        ierr = VecSet(temp,zero);CHKERRQ(ierr);    
-        for(index = 0; index < 3; index++)
+     	//initialize
+     	//ierr = VecSet(para,zero);CHKERRQ(ierr); 
+     	data0[2] = i*dt;   
+        //write the values into the array of parameter
+        for(i = 0; i < 3; i++)
         {   
-          u0 = data[index];   
-          ierr = VecSetValues(temp,1,&index,&u0,INSERT_VALUES);CHKERRQ(ierr);   
+          tempdata = data0[i];   
+          ierr = VecSetValues(para,1,&index,&tempdata,INSERT_VALUES);CHKERRQ(ierr);   
         }
-        ierr = VecAssemblyBegin(temp);CHKERRQ(ierr);   
-        ierr = VecAssemblyEnd(temp);CHKERRQ(ierr);  
-  
-        ierr = VecView(temp, h5);CHKERRQ(ierr);    
-        ierr = VecView(z, h5);CHKERRQ(ierr);   
-        ierr = PetscViewerDestroy(&h5);CHKERRQ(ierr); 
-      }
+        ierr = VecAssemblyBegin(para);CHKERRQ(ierr);   
+        ierr = VecAssemblyEnd(para);CHKERRQ(ierr);  
+        //view the temperature data and parameters
+        ierr = PetscViewerHDF5Open(PETSC_COMM_WORLD,"out.h5", FILE_MODE_WRITE, &h5);CHKERRQ(ierr);    
+        ierr = PetscObjectSetName((PetscObject) u, "temp");CHKERRQ(ierr);   
+        ierr = PetscObjectSetName((PetscObject) para, "parameter");CHKERRQ(ierr);   
+        ierr = VecView(para, h5);CHKERRQ(ierr);    
+        ierr = VecView(u, h5);CHKERRQ(ierr);
+	 }
+	 ierr = PetscViewerDestroy(&h5);CHKERRQ(ierr);
   }
 	
-  ierr = VecView(z,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);  /* view the z vector */
+  ierr = VecView(u,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr); 
 
-	
   //deallocate the vectors and matrix
   ierr = VecDestroy(&x);CHKERRQ(ierr);  ierr = VecDestroy(&u);CHKERRQ(ierr);
   ierr = VecDestroy(&f);CHKERRQ(ierr);
   ierr = MatDestroy(&A);CHKERRQ(ierr);
-	
 
   ierr = PetscFinalize(); 
   return ierr;
