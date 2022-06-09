@@ -205,9 +205,9 @@ int main(int argc,char **args)
         ierr = VecView(para, h5);CHKERRQ(ierr);    
         ierr = VecView(u, h5);CHKERRQ(ierr);
         ierr = PetscViewerDestroy(&h5);CHKERRQ(ierr);
-	 }
+     }
      if(data0[2] == t0)
-	 {
+     {
     	break;
      }
 	 
