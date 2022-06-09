@@ -180,7 +180,7 @@ int main(int argc,char **args)
      it += 1;
      int j = it % 10;
      //ierr = PetscPrintf(PETSC_COMM_WORLD,"t = %d\n",it);CHKERRQ(ierr);
-     /*
+     
      if (j == 0)
      {
      	ierr = PetscViewerCreate(PETSC_COMM_WORLD,&h5);CHKERRQ(ierr); 
@@ -210,7 +210,7 @@ int main(int argc,char **args)
 	 {
     	break;
      }
-	 */
+	 
   }
 	
   ierr = VecView(u,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
