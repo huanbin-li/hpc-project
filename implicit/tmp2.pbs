@@ -1,0 +1,14 @@
+#!/bin/bash
+#BSUB -J mytest
+#BSUB -q short
+#BSUB -n 40
+#BSUB -R "span[ptile=40]"
+#BSUB -o stdout.out
+#BSUB -e stderr.err
+
+export PETSC_DIR=/work/mae-lihb/petsc-3.16.6
+module load intel/2018.4
+module load mpi/intel/2018.4
+
+valgrind mpirun ./implicit_euler.out > $LSB_JOBID.log 2>&1
+

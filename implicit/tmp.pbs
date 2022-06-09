@@ -1,0 +1,28 @@
+#!/bin/bash
+#BSUB -J mytest
+#BSUB -q ser
+#BSUB -n 2
+#BSUB -R "span[ptile=2]"
+#BSUB -o stdout.out
+#BSUB -e stderr.err
+
+export PETSC_DIR=/work/mae-lihb/petsc-3.16.6
+module load intel/2018.4
+module load mpi/intel/2018.4
+
+#mpirun -np 2 ./ex5.out -mat_view -ksp_view
+
+#mpirun -np 1 ./implicit_euler.out -n 50 -dt 0.00000001 -t 1.0 -step 0 -ksp_type cg -pc_type none -log_view \
+ > $LSB_JOBID.log 2>&1
+
+mpirun -np 2 ./implicit_euler.out -ksp_type gmres \
+  -ksp_gmres_restart 30 -ksp_rtol 1.0e-10 \
+  -ksp_atol 1.0e-50 -ksp_max_it 1500 \
+  -ksp_gmres_modifiedgramschmidt \
+  -pc_type jacobi \
+  -sub_ksp_type richardson \
+  -sub_pc_type icc -ksp_monitor_short \
+  -ksp_converged_reason \
+  -n 100 -dt 0.00004 -t 1.0 -step 0 \
+  -ksp_view \
+  -log_view > $LSB_JOBID.log 2>&1
