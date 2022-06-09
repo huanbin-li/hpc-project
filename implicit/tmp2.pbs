@@ -1,8 +1,8 @@
 #!/bin/bash
 #BSUB -J mytest
-#BSUB -q short
-#BSUB -n 40
-#BSUB -R "span[ptile=40]"
+#BSUB -q ser
+#BSUB -n 1
+#BSUB -R "span[ptile=1]"
 #BSUB -o stdout.out
 #BSUB -e stderr.err
 
