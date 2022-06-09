@@ -1,8 +1,8 @@
 #!/bin/bash
 #BSUB -J mytest
 #BSUB -q ser
-#BSUB -n 1
-#BSUB -R "span[ptile=1]"
+#BSUB -n 2
+#BSUB -R "span[ptile=2]"
 #BSUB -o stdout.out
 #BSUB -e stderr.err
 
@@ -12,6 +12,6 @@ module load mpi/intel/2018.4
 
 #mpirun -np 2 ./ex5.out -mat_view -ksp_view
 
-mpirun -np 2 ./explicit_euler.out -ksp_type cg -pc_type none -ksp_monitor -ksp_view -log_view \
+mpirun -np 1 ./explicit_euler.out -n 50 -dt 0.00000001 -t 1.0 -step 0 -ksp_type cg -pc_type none -ksp_monitor -ksp_view -log_view \
  > $LSB_JOBID.log 2>&1
 
