@@ -216,7 +216,7 @@ int main(int argc,char **args)
      //Write the values of the current solutions every 10 iterations. 
      it += 1;
      int j = it % 10;
-     /*
+     
      if (j == 0)
      {
      	ierr = PetscViewerCreate(PETSC_COMM_WORLD,&h5);CHKERRQ(ierr); 
@@ -246,7 +246,7 @@ int main(int argc,char **args)
 	 {
     	break;
      }
-	 */
+	 
   }
   	
   ierr = VecView(u,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr); 
